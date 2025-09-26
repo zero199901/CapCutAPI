@@ -95,6 +95,16 @@ def save_draft_background(draft_id, draft_folder, task_id):
         template_dir = "template" if IS_CAPCUT_ENV else "template_jianying"
         draft_folder_for_duplicate.duplicate_as_template(template_dir, draft_id)
         
+        # Move draft folder to target location if draft_folder is specified
+        if draft_folder:
+            target_draft_path = os.path.join(draft_folder, draft_id)
+            if os.path.exists(target_draft_path):
+                shutil.rmtree(target_draft_path)
+            shutil.move(draft_id, target_draft_path)
+            logger.info(f"Moved draft folder to: {target_draft_path}")
+            # Update current_dir to point to the target location
+            current_dir = target_draft_path
+        
         # Update task status
         update_task_field(task_id, "message", "Updating media file metadata")
         update_task_field(task_id, "progress", 5)
@@ -212,8 +222,10 @@ def save_draft_background(draft_id, draft_folder, task_id):
         update_task_field(task_id, "message", "Saving draft information")
         logger.info(f"Task {task_id} progress 70%: Saving draft information.")
         
-        script.dump(os.path.join(current_dir, f"{draft_id}/draft_info.json"))
-        logger.info(f"Draft information has been saved to {os.path.join(current_dir, draft_id)}/draft_info.json.")
+        # Save draft_info.json to the correct location
+        draft_info_path = os.path.join(current_dir, "draft_info.json")
+        script.dump(draft_info_path)
+        logger.info(f"Draft information has been saved to {draft_info_path}.")
 
         draft_url = ""
         # Only upload draft information when IS_UPLOAD_DRAFT is True
@@ -237,10 +249,12 @@ def save_draft_background(draft_id, draft_folder, task_id):
             logger.info(f"Draft archive has been uploaded to OSS, URL: {draft_url}")
             update_task_field(task_id, "draft_url", draft_url)
 
-            # Clean up temporary files
-            if os.path.exists(os.path.join(current_dir, draft_id)):
-                shutil.rmtree(os.path.join(current_dir, draft_id))
-                logger.info(f"Cleaned up temporary draft folder: {os.path.join(current_dir, draft_id)}")
+            # Clean up temporary files (only if not moved to target location)
+            if not draft_folder and os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), draft_id)):
+                shutil.rmtree(os.path.join(os.path.dirname(os.path.abspath(__file__)), draft_id))
+                logger.info(f"Cleaned up temporary draft folder: {os.path.join(os.path.dirname(os.path.abspath(__file__)), draft_id)}")
+            elif draft_folder:
+                logger.info(f"Draft folder moved to target location, skipping cleanup")
 
     
         # Update task status - Completed
@@ -696,9 +710,14 @@ def download_script(draft_id: str, draft_folder: str = None, script_data: Dict =
             logger.info(f"Concurrent download completed, downloaded {len(downloaded_paths)} files in total.")
         
         """Write draft file content to file"""
-        with open(f"{draft_folder}/{draft_id}/draft_info.json", "w", encoding="utf-8") as f:
+        if draft_folder:
+            draft_info_path = os.path.join(draft_folder, draft_id, "draft_info.json")
+        else:
+            draft_info_path = os.path.join(draft_id, "draft_info.json")
+        
+        with open(draft_info_path, "w", encoding="utf-8") as f:
             f.write(json.dumps(script_data))
-        logger.info(f"Draft has been saved.")
+        logger.info(f"Draft has been saved to: {draft_info_path}")
 
         # No draft_url for download, but return success
         return {"success": True, "message": f"Draft {draft_id} and its assets downloaded successfully"}

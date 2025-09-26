@@ -345,7 +345,10 @@ def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 result = {"duration": duration}
                 
             elif tool_name == "save_draft":
-                save_result = save_draft_impl(**arguments)
+                # 从配置中获取草稿文件夹路径
+                draft_folder = "/Users/edy/Movies/JianyingPro/User Data/Projects/com.lveditor.draft"
+                draft_id = arguments.get("draft_id")
+                save_result = save_draft_impl(draft_id, draft_folder)
                 if isinstance(save_result, dict) and "draft_url" in save_result:
                     result = {"draft_url": save_result["draft_url"]}
                 else:
